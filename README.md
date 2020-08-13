@@ -1,6 +1,6 @@
 # canvas2nbgrader
 
-Python scripts to connect Canvas submissions to nbgrader
+## Python scripts to connect Canvas submissions to nbgrader
 
 1. Download Jupyter notebooks from Canvas.
 2. Move notebooks into a folder named `submissions/{assignment_name}`. The assignment name must match the name in nbgrader.

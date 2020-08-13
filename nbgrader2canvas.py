@@ -15,7 +15,6 @@ for student in glob(os.path.join('autograded','*')):
     canvas_id = os.path.basename(student)
     file = glob(os.path.join('submissions',assignment,'*_{}_*'.format(canvas_id)))
     if file:
-        students_submitted.append(canvas_id)
         source = os.path.join('autograded',canvas_id,assignment,assignment + '.ipynb')
         destination = os.path.join('returned',assignment,os.path.basename(file[0]))
         shutil.copyfile(source,destination)
