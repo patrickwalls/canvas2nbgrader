@@ -25,4 +25,11 @@ grades = grades[['assignment','student_id','raw_score']]
 grades.columns = ['assignment','canvas_id','total']
 
 os.makedirs(os.path.join('grades'),exist_ok=True)
-grades.to_csv(os.path.join('grades',assignment + '.csv'),index=False)
+
+upload = pd.read_csv(os.path.join('grades','upload.csv'),header=0,skiprows=[1,2])
+columns = [c for c in upload.columns if c in ['Student','ID','SIS User ID','SIS Login ID','Section','Student Number']]
+upload = upload[columns]
+
+upload_grades = pd.merge(upload,grades,left_on='ID',right_on='canvas_id')
+upload_grades.drop(['assignment','canvas_id'],axis=1,inplace=True)
+upload_grades.to_csv(os.path.join('grades',assignment + '.csv'),index=False)
