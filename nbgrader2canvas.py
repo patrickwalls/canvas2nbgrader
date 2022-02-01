@@ -1,35 +1,47 @@
-from glob import glob
+from canvasapi import Canvas
+import glob
+import tempfile
 import os
-import shutil
-import pandas as pd
 
-assignment = input('Enter assignment name: ')
-if not os.path.isdir(os.path.join('submissions',assignment)):
-    print('Cannot find folder {}'.format(os.path.join('submissions',assignment)))
-    exit()
-os.makedirs(os.path.join('returned',assignment),exist_ok=True)
-for old_file in glob(os.path.join('returned',assignment,'*')):
-    os.remove(old_file)
+API_URL = "https://ubc.instructure.com"
+with open("token.txt","r") as f:
+    API_KEY = f.read()
+canvas = Canvas(API_URL, API_KEY)
 
-for student in glob(os.path.join('autograded','*')):
-    canvas_id = os.path.basename(student)
-    file = glob(os.path.join('submissions',assignment,'*_{}_*'.format(canvas_id)))
-    if file:
-        source = os.path.join('autograded',canvas_id,assignment,assignment + '.ipynb')
-        destination = os.path.join('returned',assignment,os.path.basename(file[0]))
-        shutil.copyfile(source,destination)
+canvas_course_id = input('Canvas course ID: ')
+canvas_course_id = int(canvas_course_id)
+canvas_assignment_id = input('Canvas assignment ID: ')
+canvas_assignment_id = int(canvas_assignment_id)
+assignment_name = input('Assignment name: ')
 
-grades = pd.read_csv('grades.csv')
-grades = grades[grades['assignment'] == assignment]
-grades = grades[['assignment','student_id','raw_score']]
-grades.columns = ['assignment','canvas_id','total']
+course = canvas.get_course(canvas_course_id)
+assignment = course.get_assignment(canvas_assignment_id)
 
-os.makedirs(os.path.join('grades'),exist_ok=True)
+with open('grades.csv') as f:
+    lines = f.readlines()
+    lines = [line for line in lines if line.split(',')[0] == assignment_name]
 
-upload = pd.read_csv(os.path.join('grades','upload.csv'),header=0,skiprows=[1,2])
-columns = [c for c in upload.columns if c in ['Student','ID','SIS User ID','SIS Login ID','Section','Student Number']]
-upload = upload[columns]
-
-upload_grades = pd.merge(upload,grades,left_on='ID',right_on='canvas_id')
-upload_grades.drop(['assignment','canvas_id'],axis=1,inplace=True)
-upload_grades.to_csv(os.path.join('grades',assignment + '.csv'),index=False)
+for line in lines:
+    items = line.split(',')
+    canvas_id = int(items[3])
+    try:
+        submission = assignment.get_submission(canvas_id)
+    except:
+        print('Could not find assignment for {}'.format(canvas_id))
+        continue
+    source = glob.glob(os.path.join("autograded",str(canvas_id),assignment_name,assignment_name + ".ipynb"))
+    if len(source) == 0:
+        print('Could not find autograded notebook for {}'.format(canvas_id))
+        continue
+    else:
+        source = source[0]
+    score = float(items[7])
+    print("Uploading grade and feedback for {} ...".format(canvas_id))
+    submission.edit(submission={'posted_grade': score})
+    f = tempfile.NamedTemporaryFile('w+')
+    f.name = '{}_autograded.ipynb'.format(assignment_name)
+    with open(source,'r') as fsource:
+        f.write(fsource.read())
+    f.seek(0)
+    submission.upload_comment(f)
+    f.close()
