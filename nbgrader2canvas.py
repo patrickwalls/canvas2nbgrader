@@ -6,7 +6,7 @@ import pandas as pd
 
 # functions
 
-# returns attributes from individual submission as a list, substitutes "" if the submission doesn't have an attribute
+# returns attributes from individual submission as a list, uses "" if the submission doesn't have an attribute
 def build_submission_row(individual_submission, attributes):
     submission_row = []
 
@@ -18,10 +18,11 @@ def build_submission_row(individual_submission, attributes):
     
     return submission_row
 
+# returns a dataframe containing submission data for a Canvas assignment
 def get_submission_data(canvas_assignment):
     headings = ["user_id", "graded_at", "submitted_at"]
     submission_data = []
-    
+
     # get submission data for each student's assignment
     submissions = canvas_assignment.get_submissions()
     for submission in submissions:
@@ -30,12 +31,10 @@ def get_submission_data(canvas_assignment):
     
     submission_data = pd.DataFrame(submission_data, columns = headings)
 
-    # format times as datetime
+    # format columns
     for col in ["graded_at", "submitted_at"]:
         submission_data[col] = pd.to_datetime(submission_data[col])
-    # format id as int
-    submission_data["user_id"] = pd.to_numeric(submission_data)
-
+    submission_data["user_id"] = pd.to_numeric(submission_data["user_id"])
     return submission_data
 
 # MAIN
