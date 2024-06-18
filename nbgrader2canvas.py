@@ -5,32 +5,38 @@ import os
 import pandas as pd
 
 # functions
-def get_submission_data(canvas_assignment):
+
+# returns attributes from individual submission as a list, substitutes "" if the submission doesn't have an attribute
+def build_submission_row(individual_submission, attributes):
+    submission_row = []
+
+    for attribute in attributes:
+        if hasattr(individual_submission, attribute):
+            submission_row.append(getattr(individual_submission, attribute))
+        else:
+            submission_row.append("")
     
-    headings = ['user_id', 'graded_at', 'submitted_at']
-    stats_overall = []
+    return submission_row
+
+def get_submission_data(canvas_assignment):
+    headings = ["user_id", "graded_at", "submitted_at"]
+    submission_data = []
+    
     # get submission data for each student's assignment
     submissions = canvas_assignment.get_submissions()
     for submission in submissions:
+        submission_stats = build_submission_row(submission, headings)
+        submission_data.append(submission_stats)
+    
+    submission_data = pd.DataFrame(submission_data, columns = headings)
 
-        submission_stats = [int(submission.user_id)]
-        try:
-            submission_stats.append(submission.graded_at)
-        except:
-            print("could not retrieve grading time")
-        try:
-            submission_stats.append(submission.submitted_at)
-        except:
-            print("could not retrieve submission time")
-        stats_overall.append(submission_stats)
-    # format as pandas df, ensure datetime cooperation
-    grade_status = pd.DataFrame(stats_overall, columns = headings)
-    with pd.option_context("future.no_silent_downcasting", True):
-        grade_status = grade_status.fillna(pd.to_datetime('2000-01-01 00:00:01+00:00')).infer_objects(copy=False)
+    # format times as datetime
     for col in ["graded_at", "submitted_at"]:
-        grade_status[col] = pd.to_datetime(grade_status[col])
+        submission_data[col] = pd.to_datetime(submission_data[col])
+    # format id as int
+    submission_data["user_id"] = pd.to_numeric(submission_data)
 
-    return grade_status
+    return submission_data
 
 # MAIN
 API_URL = "https://ubc.instructure.com"
