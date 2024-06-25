@@ -2,7 +2,31 @@ from canvasapi import Canvas
 import glob
 import tempfile
 import os
+import hashlib
+import json
+import pandas as pd
 
+# functions
+def open_upload_log(upload_log, upload_log_column_names):
+    try:
+        upload_history = pd.read_csv(upload_log)
+    except FileNotFoundError:
+        upload_history = pd.DataFrame(columns=upload_log_column_names)
+    return upload_history.set_index(upload_log_column_names[0:2])
+
+def parse_notebook_without_execution_data(path):
+    file = open(path)
+    json_dict = json.load(file)
+    file.close()
+    for index, cell_dict in enumerate(json_dict["cells"]):
+        if "execution" in cell_dict["metadata"].keys():
+            json_dict["cells"][index]["metadata"].pop("execution")
+    return json_dict
+
+def sha256(string):
+    return hashlib.sha256(string.encode("utf-8")).hexdigest()
+
+# Main
 API_URL = "https://ubc.instructure.com"
 with open("token.txt","r") as f:
     API_KEY = f.read()
@@ -21,6 +45,10 @@ with open('grades.csv') as f:
     lines = f.readlines()
     lines = [line for line in lines if line.split(',')[0] == assignment_name]
 
+upload_log = "upload_log.csv"
+upload_log_column_names = ["canvas_id", "assignment_name", "file_upload_hash"]
+upload_history = open_upload_log(upload_log, upload_log_column_names)
+
 for line in lines:
     items = line.split(',')
     canvas_id = int(items[3])
@@ -36,6 +64,19 @@ for line in lines:
     else:
         source = source[0]
     score = float(items[7])
+
+    try:
+        previous_upload_hash = upload_history.loc[(canvas_id, assignment_name), upload_log_column_names[2]]
+    except KeyError:
+        previous_upload_hash = 0
+
+    source_dict = parse_notebook_without_execution_data(source)
+    source_hash = sha256(str(source_dict))
+    if (source_hash == previous_upload_hash):
+        print("{}'s autograded notebook is identical to the previously uploaded notebook, skipping.".format(canvas_id))
+        continue
+    upload_history.loc[(canvas_id, assignment_name), upload_log_column_names[2]] = source_hash
+    
     print("Uploading grade and feedback for {} ...".format(canvas_id))
     submission.edit(submission={'posted_grade': score})
     f = tempfile.NamedTemporaryFile('w+')
@@ -45,3 +86,6 @@ for line in lines:
     f.seek(0)
     submission.upload_comment(f)
     f.close()
+
+    # update upload_log after every submission
+    upload_history.to_csv(upload_log)
