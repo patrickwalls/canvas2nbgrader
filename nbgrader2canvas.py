@@ -23,8 +23,9 @@ def parse_notebook_as_dict(path):
     file = open(path)
     json_dict = json.load(file)
     file.close()
+
     for index, cell_dict in enumerate(json_dict["cells"]):
-        # cell outputs aren't necessary for the hash comparison and could slow things down
+        # outputs aren't necessary for the comparison, but could slow down hashing
         if "outputs" in cell_dict.keys():
             cell_dict.pop("outputs")
         # execution times must be removed for the comparison
@@ -79,7 +80,6 @@ for line in lines:
 
     source_dict = parse_notebook_as_dict(source)
     source_hash = sha256(str(source_dict))
-
     if (source_hash == previous_upload_hash):
         print("{}'s autograded notebook is the same as the previously uploaded notebook, skipping.".format(canvas_id))
         continue
@@ -95,5 +95,5 @@ for line in lines:
     submission.upload_comment(f)
     f.close()
 
-    # update UPLOAD_LOG after every submission
+    # update UPLOAD_LOG after every upload
     upload_history.to_csv(UPLOAD_LOG)
