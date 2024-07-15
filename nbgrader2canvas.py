@@ -27,7 +27,7 @@ def parse_notebook_as_dict(path):
     for index, cell_dict in enumerate(json_dict["cells"]):
         # outputs aren't necessary for the comparison, but could slow down hashing
         if "outputs" in cell_dict.keys():
-            cell_dict.pop("outputs")
+            json_dict["cells"][index].pop("outputs")
         # execution times must be removed for the comparison
         if "execution" in cell_dict["metadata"].keys():
             json_dict["cells"][index]["metadata"].pop("execution")
