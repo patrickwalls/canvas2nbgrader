@@ -7,28 +7,26 @@ import json
 import pandas as pd
 
 # globals
-API_URL = "https://ubc.instructure.com"
 UPLOAD_LOG = "upload_log.csv"
-UPLOAD_LOG_COLUMN_NAMES = ["canvas_id", "assignment_name", "file_upload_hash"]
+UPLOAD_LOG_COLUMNS = ["canvas_id", "assignment_name", "file_upload_hash"]
 
 # functions
 def open_upload_log():
     try:
         upload_history = pd.read_csv(UPLOAD_LOG)
     except FileNotFoundError:
-        upload_history = pd.DataFrame(columns=UPLOAD_LOG_COLUMN_NAMES)
-    return upload_history.set_index(UPLOAD_LOG_COLUMN_NAMES[0:2])
+        upload_history = pd.DataFrame(columns=UPLOAD_LOG_COLUMNS)
+    return upload_history.set_index(UPLOAD_LOG_COLUMNS[0:2])
 
-def parse_notebook_as_dict(path):
-    file = open(path)
-    json_dict = json.load(file)
-    file.close()
+def parse_notebook_as_json(path):
+    with open(path) as file:
+        json_dict = json.load(file)
 
     for index, cell_dict in enumerate(json_dict["cells"]):
-        # outputs aren't necessary for the comparison, but could slow down hashing
+        # complex outputs can slow down hashing, and could be random
         if "outputs" in cell_dict.keys():
             json_dict["cells"][index].pop("outputs")
-        # execution times must be removed for the comparison
+        # time of execution hampers the comparison
         if "execution" in cell_dict["metadata"].keys():
             json_dict["cells"][index]["metadata"].pop("execution")
 
@@ -38,6 +36,7 @@ def sha256(string):
     return hashlib.sha256(string.encode("utf-8")).hexdigest()
 
 # Main
+API_URL = "https://ubc.instructure.com"
 with open("token.txt","r") as f:
     API_KEY = f.read()
 canvas = Canvas(API_URL, API_KEY)
@@ -50,12 +49,11 @@ assignment_name = input('Assignment name: ')
 
 course = canvas.get_course(canvas_course_id)
 assignment = course.get_assignment(canvas_assignment_id)
+upload_history = open_upload_log()
 
 with open('grades.csv') as f:
     lines = f.readlines()
     lines = [line for line in lines if line.split(',')[0] == assignment_name]
-
-upload_history = open_upload_log()
 
 for line in lines:
     items = line.split(',')
@@ -74,16 +72,14 @@ for line in lines:
     score = float(items[7])
 
     try:
-        previous_upload_hash = upload_history.loc[(canvas_id, assignment_name), UPLOAD_LOG_COLUMN_NAMES[2]]
+        previous_upload_hash = upload_history.loc[(canvas_id, assignment_name), UPLOAD_LOG_COLUMNS[2]]
     except KeyError:
         previous_upload_hash = 0
-
-    source_dict = parse_notebook_as_dict(source)
-    source_hash = sha256(str(source_dict))
+    source_hash = sha256(str(parse_notebook_as_json(source)))
     if (source_hash == previous_upload_hash):
-        print("{}'s autograded notebook is the same as the previously uploaded notebook, skipping.".format(canvas_id))
+        print("{}'s autograded notebook is (functionally) identical to the previously uploaded notebook, skipping.".format(canvas_id))
         continue
-    upload_history.loc[(canvas_id, assignment_name), UPLOAD_LOG_COLUMN_NAMES[2]] = source_hash
+    upload_history.loc[(canvas_id, assignment_name), UPLOAD_LOG_COLUMNS[2]] = source_hash
     
     print("Uploading grade and feedback for {} ...".format(canvas_id))
     submission.edit(submission={'posted_grade': score})
@@ -95,5 +91,4 @@ for line in lines:
     submission.upload_comment(f)
     f.close()
 
-    # update UPLOAD_LOG after every upload
     upload_history.to_csv(UPLOAD_LOG)
